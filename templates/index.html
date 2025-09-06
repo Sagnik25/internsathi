@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="text-center mb-4">Internsathi: Browse Internships & Jobs</h2>
+
+  <!-- Search -->
+  <form method="POST" action="/recommend-normal" class="mb-4">
+    <input type="text" name="query" class="form-control" placeholder="Search jobs..." required>
+    <button type="submit" class="btn btn-primary mt-2">Search</button>
+  </form>
+
+  <!-- Normal Jobs -->
+  {% if results %}
+  <h4>Recommended Jobs</h4>
+  <div class="row">
+    {% for job in results %}
+    <div class="col-md-4 mb-3">
+      <div class="card shadow-sm" style="background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);">
+        <div class="card-body">
+          <h5 class="card-title">{{ job['job'] }}</h5>
+          <h6 class="card-subtitle mb-2 text-muted">{{ job['company'] }}</h6>
+          <p class="card-text">{{ job['place'] }} | Exp: {{ job['exp'] }} | Salary: {{ job['salary'] }}</p>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

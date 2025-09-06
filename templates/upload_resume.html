@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="text-center mb-4">Upload Your Resume</h2>
+
+  <form method="POST" enctype="multipart/form-data" class="mb-4">
+    <input type="file" name="resume" accept=".docx,.pdf" class="form-control" required>
+    <button type="submit" class="btn btn-success mt-2">Upload & Get Recommendations</button>
+  </form>
+
+  {% if results %}
+  <h4>Recommended Jobs for You</h4>
+  <div class="row">
+    {% for job in results %}
+    <div class="col-md-4 mb-3">
+      <div class="card shadow-sm" style="background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);">
+        <div class="card-body">
+          <h5 class="card-title">{{ job['job'] if job.get('job') else job['internship'] }}</h5>
+          <h6 class="card-subtitle mb-2 text-muted">{{ job['company'] }}</h6>
+          <p class="card-text">{{ job['place'] }} | Exp: {{ job['exp'] }} | Salary: {{ job['salary'] }}</p>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

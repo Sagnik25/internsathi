@@ -1,47 +1,97 @@
-from flask import Flask, render_template, request
+from flask import Flask, request, jsonify, render_template
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import docx2txt
+import PyPDF2
 import os
-import pickle
 
 app = Flask(__name__)
 
-# Load your ML models (for now, placeholders)
-try:
-    with open("models/ml_model_normal.pkl", "rb") as f:
-        ml_model_normal = pickle.load(f)
-except:
-    ml_model_normal = None
+# ---------------- Load Datasets ----------------
+normal_jobs = pd.read_csv("models/internshala_jobs.csv")
+disabled_jobs = pd.read_csv("models/internships_disabled_remote.csv")
 
-try:
-    with open("models/ml_model_disabled.pkl", "rb") as f:
-        ml_model_disabled = pickle.load(f)
-except:
-    ml_model_disabled = None
+# Create a 'combined' column for NLP search
+def create_combined(df, columns):
+    return df[columns].astype(str).apply(lambda x: ' '.join(x).lower(), axis=1)
 
-@app.route("/", methods=["GET", "POST"])
+normal_jobs["combined"] = create_combined(normal_jobs, ["job", "company", "place"])
+disabled_jobs["combined"] = create_combined(disabled_jobs, ["internship", "company", "place", "mode", "accessible", "women_friendly"])
+
+# ---------------- Utility Functions ----------------
+def recommend_jobs(df, query, top_n=5):
+    if not query.strip():
+        return df.head(top_n).to_dict(orient="records")
+    tfidf = TfidfVectorizer(stop_words='english')
+    tfidf_matrix = tfidf.fit_transform(df["combined"])
+    query_vec = tfidf.transform([query.lower()])
+    sim_scores = cosine_similarity(query_vec, tfidf_matrix).flatten()
+    top_indices = sim_scores.argsort()[-top_n:][::-1]
+    return df.iloc[top_indices].to_dict(orient="records")
+
+def extract_text(file):
+    # DOCX
+    if file.filename.endswith(".docx"):
+        return docx2txt.process(file)
+    # PDF
+    elif file.filename.endswith(".pdf"):
+        pdf = PyPDF2.PdfReader(file)
+        text = ""
+        for page in pdf.pages:
+            text += page.extract_text()
+        return text
+    else:
+        return ""
+
+# ---------------- Routes ----------------
+@app.route("/")
 def index():
-    results = []
+    return render_template("index.html")
+
+@app.route("/upload-resume", methods=["GET", "POST"])
+def upload_resume():
     if request.method == "POST":
-        resume_text = request.form.get("resume_text", "")
-        type_ = request.form.get("type", "normal")
+        file = request.files.get("resume")
+        if not file:
+            return jsonify({"error": "No file uploaded"}), 400
+        text = extract_text(file)
+        results = recommend_jobs(normal_jobs, text)
+        return render_template("upload_resume.html", results=results)
+    return render_template("upload_resume.html", results=None)
 
-        # Mock recommendation logic (replace with ML model later)
-        if type_ == "normal":
-            results = [
-                {"company": "Solfyn International LLP", "internship": "Procurement Executive",
-                 "place": "Mumbai", "exp": "0 year(s)", "salary": "₹2,40,000 - 3,00,000"},
-                {"company": "Zedex Info Pvt Ltd", "internship": "Data Entry Associate",
-                 "place": "Mumbai", "exp": "0 year(s)", "salary": "₹2,00,000"}
-            ]
-        else:  # Disabled-friendly
-            results = [
-                {"company": "GlobalCorp", "internship": "Data Analyst Intern",
-                 "place": "Remote", "exp": "2 year(s)", "salary": "₹2,00,000 - 3,00,000", "accessible": "Yes", "women_friendly": "Yes"},
-                {"company": "TechNova", "internship": "Data Analyst Intern",
-                 "place": "Remote", "exp": "1 year(s)", "salary": "₹4,50,000 - 6,00,000", "accessible": "Yes", "women_friendly": "Yes"}
-            ]
-
+@app.route("/recommend-normal", methods=["POST"])
+def recommend_normal():
+    query = request.form.get("query", "")
+    results = recommend_jobs(normal_jobs, query)
     return render_template("index.html", results=results)
 
+@app.route("/recommend-disabled", methods=["POST"])
+def recommend_disabled():
+    query = request.form.get("query", "")
+    results = recommend_jobs(disabled_jobs, query)
+    return render_template("index.html", results_disabled=results)
+
+@app.route("/employer-post", methods=["GET", "POST"])
+def employer_post():
+    if request.method == "POST":
+        company = request.form.get("company")
+        job = request.form.get("job")
+        place = request.form.get("place")
+        # For now we just append to CSV (mock MCA verification)
+        new_row = pd.DataFrame([{
+            "company": company,
+            "job": job,
+            "place": place,
+            "combined": f"{job} {company} {place}".lower()
+        }])
+        global normal_jobs
+        normal_jobs = pd.concat([normal_jobs, new_row], ignore_index=True)
+        normal_jobs.to_csv("models/internshala_jobs.csv", index=False)
+        return render_template("employer_post.html", success=True)
+    return render_template("employer_post.html", success=False)
+
+# ---------------- Run App ----------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)

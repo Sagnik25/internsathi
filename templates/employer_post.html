@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="text-center mb-4">Employer: Post a Job/Internship</h2>
+
+  {% if success %}
+  <div class="alert alert-success text-center">Job posted successfully!</div>
+  {% endif %}
+
+  <form method="POST" class="mb-4">
+    <input type="text" name="company" placeholder="Company Name" class="form-control mb-2" required>
+    <input type="text" name="job" placeholder="Job/Internship Title" class="form-control mb-2" required>
+    <input type="text" name="place" placeholder="Location" class="form-control mb-2" required>
+    <button type="submit" class="btn btn-primary mt-2">Post Job</button>
+  </form>
+</div>
+{% endblock %}
